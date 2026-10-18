@@ -592,7 +592,7 @@ button { font: inherit; color: inherit; }
       logTier: 'Cup, average best item',
       copyCsv: 'Copy CSV', copied: 'Copied', clearLog: 'Clear log', cleared: 'Cleared',
       reset: 'Reset progress', resetConfirm: 'Tap again to reset', resetDone: 'Progress reset',
-      defaults: 'Reset to defaults', defaultsDone: 'Defaults restored', playtestOn: 'Playtest tools on', playtestOff: 'Playtest tools off',
+      defaults: 'Reset to defaults', defaultsDone: 'Defaults restored',
       language: 'Italiano', quitLabel: 'Quit to the start screen', closeLabel: 'Close',
       boardLabel: 'Maze board, {s} by {s}, {k} pairs to join', cupLabel: 'Cup game',
       lvlEasier: 'Easier maze', lvlHarder: 'Harder maze', csvLabel: 'Playtest log as CSV',
@@ -646,7 +646,7 @@ button { font: inherit; color: inherit; }
       logTier: 'Tazza, oggetto migliore medio',
       copyCsv: 'Copia CSV', copied: 'Copiato', clearLog: 'Svuota registro', cleared: 'Svuotato',
       reset: 'Azzera progressi', resetConfirm: 'Tocca di nuovo per azzerare', resetDone: 'Progressi azzerati',
-      defaults: 'Ripristina predefiniti', defaultsDone: 'Predefiniti ripristinati', playtestOn: 'Strumenti playtest attivi', playtestOff: 'Strumenti playtest disattivati',
+      defaults: 'Ripristina predefiniti', defaultsDone: 'Predefiniti ripristinati',
       language: 'English', quitLabel: 'Torna alla schermata iniziale', closeLabel: 'Chiudi',
       boardLabel: 'Labirinto {s} per {s}, {k} coppie da unire', cupLabel: 'Gioco della tazza',
       lvlEasier: 'Labirinto più facile', lvlHarder: 'Labirinto più difficile', csvLabel: 'Registro playtest in CSV',
@@ -2486,22 +2486,10 @@ button { font: inherit; color: inherit; }
   window.__pausaCaffe = { makeBoard, minExtra, levelSpec, mulberry32, CupWorld, surfaceFill, rimCheck, ITEMS, TIER_R, TIER_PTS, TOP,
     CUP_HEIGHT, SPAWN_WEIGHTS, RISE_PER_DROP, FILL_BONUS, STEP, TOSS, get scene() { return scene; }, startVisit };
 
-  // The settings panel is for players. The playtest tools (next maze, log, reset progress) appear with ?playtest (or
-  // #playtest) in the address, or after five quick taps on the settings title: the way in for links that cannot
-  // carry ?playtest, like a shared artifact. The taps are remembered on that phone; five more switch the tools off.
-  let PLAYTEST = /playtest/i.test(location.search + location.hash) || store.get('playtest', false) === true;
+  // The settings panel is for players. The playtest tools (next maze, log, reset progress) appear only with ?playtest
+  // (or #playtest) in the address.
+  const PLAYTEST = /playtest/i.test(location.search + location.hash);
   const showPlaytest = () => { for (const el of document.querySelectorAll('[data-playtest]')) el.hidden = !PLAYTEST; };
-  let titleTaps = [];
-  $('#setTitle').addEventListener('click', () => {
-    const now = Date.now();
-    titleTaps = titleTaps.filter((t0) => now - t0 < 2000).concat([now]);
-    if (titleTaps.length < 5) return;
-    titleTaps = []; PLAYTEST = !PLAYTEST;
-    store.set('playtest', PLAYTEST); showPlaytest(); renderSettings(); haptic(20);
-    const note = document.querySelector('#settings [data-i18n="settingsNote"]');
-    note.textContent = t(PLAYTEST ? 'playtestOn' : 'playtestOff');
-    setTimeout(() => { note.textContent = t('settingsNote'); }, 2500);
-  });
 
   function boot(data) {
     showPlaytest();

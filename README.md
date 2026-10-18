@@ -1,6 +1,6 @@
 # Pausa Caffè
 
-A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 188 KB (77 KB compressed), the header font included.
+A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 187 KB (77 KB compressed), the header font included.
 
 - **Unisci le coppie / Join the pairs**: a no-crossing maze. Each pair is two identical items. Draw a path between them without crossing other paths. Some boards have a **passage**: an optional extra challenge for one pair.
 - **Riempi la tazza / Fill the cup**: a merge game with two chains. Coffee: bean → espresso cup → moka → coffee machine. Milk: milk → cappuccino → latte macchiato → XXL latte. The top item of each chain is served straight out of the cup for +15 mance. The cup ends when something rests above the rim, or when the player taps **Servi / Serve**.
@@ -145,7 +145,7 @@ Players can change how the game plays. On the start screen, tap **Impostazioni /
 
 ### Designer extras: `?playtest`
 
-Open the game with `?playtest` (or `#playtest`) at the end of the address, or tap the settings title five times quickly (for links that cannot carry `?playtest`, like the shared artifact), to add what players never see. The taps are remembered on that phone; five more switch the tools off.
+Open the game with `?playtest` (or `#playtest`) at the end of the address to add what players never see. Without it, players get no way in.
 
 - **Next maze**: jump to any difficulty level.
 - **Playtest log**: every finished round, saved on that phone only. **Copy CSV** exports it.
