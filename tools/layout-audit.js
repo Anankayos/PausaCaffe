@@ -69,7 +69,7 @@ const CLEAR = 2; // px of air required between boxes
     if (home) {
       ['.tear span', '.packet-eyebrow', '#homeTitle', '#chainCv', '.packet-tag', '.packet-net', '#homeBest', '#btnPlay', '#btnLang', '#btnSettings'].forEach((s) => dom(s));
     } else {
-      ['#btnQuit', '#hudRound', '#hudName', '#hudTips', '#nextBox', '#statusPill', '#btnRestart', '#btnHint', '#btnServe'].forEach((s) => dom(s));
+      ['#btnQuit', '#hudRound', '#hudName', '#hudTips', '#statusPill', '#btnRestart', '#btnHint', '#btnServe'].forEach((s) => dom(s));
       const hint = document.getElementById('hint');
       if (vis(hint) && hint.textContent.trim()) { box('#hint', hint.getBoundingClientRect(), 'text'); if (hint.scrollHeight > hint.clientHeight + 1) clipped.push('#hint'); }
       const pill = document.getElementById('statusPill');
@@ -86,6 +86,8 @@ const CLEAR = 2; // px of air required between boxes
         const label = '←  ' + (document.documentElement.lang === 'it' ? 'trascina per mirare' : 'drag to aim') + '  →', w = c.measureText(label).width;
         box('aim label', { left: X + s.ox + 50 * s.s - w / 2, top: Y + s.trackY + 20, right: X + s.ox + 50 * s.s + w / 2, bottom: Y + s.trackY + 36, width: 1, height: 1 }, 'text');
         box('aim track', { left: X + s.ox + 8 * s.s - 15, top: Y + s.trackY - 15, right: X + s.ox + 92 * s.s + 15, bottom: Y + s.trackY + 15, width: 1, height: 1 }, 'content');
+        const n = s.nextCard; // the next-item card, with its tag inside
+        if (n && !s.ending) box('next card', { left: X + n.x, top: Y + n.y, right: X + n.x + n.w, bottom: Y + n.y + n.h, width: 1, height: 1 }, 'next');
         c.font = '700 11px "Helvetica Neue", Helvetica, Arial, sans-serif';
         for (const m of F) {
           const wm = c.measureText('+' + m.tips).width, rx = X + s.ox + (-2.6 - 5) * s.s, cy = Y + s.oy + CH * (1 - m.at) * s.s;
@@ -98,6 +100,7 @@ const CLEAR = 2; // px of air required between boxes
       const a = out[i], b = out[j];
       if ((a.kind === 'label' && b.name === 'cup') || (b.kind === 'label' && a.name === 'cup')) continue; // the marks belong to the cup
       if (a.kind === 'label' && b.kind === 'label') continue;
+      if ((a.kind === 'next' && b.name === 'cup') || (b.kind === 'next' && a.name === 'cup')) continue; // the card sits in the cup's drawing area
       if (a.kind === 'content' && b.kind === 'content') continue;
       const gapX = Math.max(a.l - b.r, b.l - a.r), gapY = Math.max(a.t - b.b, b.t - a.b);
       if (gapX < CLEAR && gapY < CLEAR) hits.push(a.name + ' × ' + b.name + ' (' + Math.round(Math.max(gapX, gapY)) + ' px)');
@@ -138,6 +141,9 @@ const CLEAR = 2; // px of air required between boxes
     await page.evaluate(() => { const s = window.__pausaCaffe.scene; s.finish(false); }); await page.waitForSelector('#sheet:not([hidden])', { timeout: 5000 });
     await page.click('#btnNext'); await sleep(400);
     states.push(['cup: tutorial start', await collect(page)]);
+    await page.evaluate(() => { const s = window.__pausaCaffe.scene; s.passBonus = 20; s.bonusNote = 5; s.refreshServe(); }); await sleep(100);
+    states.push(['cup: passage bonus note', await collect(page)]);
+    await page.evaluate(() => { const s = window.__pausaCaffe.scene; s.bonusNote = 0; s.refreshServe(); });
     await page.evaluate(() => { const s = window.__pausaCaffe.scene; s.reachMark(window.__pausaCaffe.FILL_BONUS[2]); }); await sleep(150);
     states.push(['cup: top mark, Serve', await collect(page)]);
     await page.evaluate(() => { const s = window.__pausaCaffe.scene, w = s.world; w.step = () => {}; const b = w.add(2, 50, -8, 0); b.age = 1; b.px = b.x; b.py = b.y; b.contact = true; }); await sleep(300);

@@ -130,7 +130,7 @@ button { font: inherit; color: inherit; }
 .top button { pointer-events: auto; }
 .hud { display: flex; align-items: center; gap: 12px; min-height: 52px; }
 .hud-title { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.hud-round, .hud-tips span, .next, .sorted {
+.hud-round, .hud-tips span, .sorted {
   font-family: var(--font-body); font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2);
 }
 .hud-name {
@@ -143,8 +143,6 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums; transition: transform 0.15s ease-out;
 }
 .hud-tips b.bump { transform: scale(1.18); }
-.next { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-#nextCv { width: 34px; height: 34px; }
 /* The hint: a cream capsule right above the board or the cup, where the eyes already are. Its left edge sits on
    the board's or the cup's left edge (set by the scene); it hugs short text and grows upward for a second line. */
 .status { top: 0; height: 74px; display: flex; align-items: flex-end; pointer-events: none; }
@@ -327,7 +325,6 @@ button { font: inherit; color: inherit; }
         <span id="quitTxt" hidden></span>
       </button>
       <div class="hud-title"><span class="hud-round" id="hudRound"></span><span class="hud-name" id="hudName"></span></div>
-      <div class="next" id="nextBox" hidden><span data-i18n="next"></span><canvas id="nextCv" width="68" height="68" aria-hidden="true"></canvas></div>
       <div class="hud-tips"><b id="hudTips">0</b><span data-i18n="tips"></span></div>
     </header>
   </div>
@@ -1389,8 +1386,10 @@ button { font: inherit; color: inherit; }
       // Paths: a dark casing under the colour keeps them readable on glare-washed screens.
       const w = cell * 0.34;
       c.lineCap = 'round'; c.lineJoin = 'round';
-      // Revealed routes sit under the paths as dashed lines in the pair's colour.
+      // Revealed routes sit under the paths as dashed lines in the pair's colour, until that pair is joined: then the
+      // player's own path replaces the hint. If the path is cut later, the hint comes back.
       for (const q of this.hints) {
+        if (this.complete[q]) continue;
         c.beginPath();
         this.pairs[q].sol.forEach((i, k) => { const [x, y] = this.center(i); if (k) c.lineTo(x, y); else c.moveTo(x, y); });
         c.setLineDash([cell * 0.16, cell * 0.14]);
@@ -1553,6 +1552,10 @@ button { font: inherit; color: inherit; }
   // balance sims so an average player still reaches the top mark in most cups.
   const RISE_PER_DROP = 0.5, MAX_COFFEE = 0.85;
   const SPILL_AFTER = 1.6; // seconds an item must rest above the rim before the cup spills
+  // Two identical items that touch stay stuck together this long (about 4 frames at 60 fps), then fuse. Any touch still
+  // merges; the wait only puts the contact on screen. A falling item moves several units per frame, so merging on first
+  // contact happened between frames: the player saw a gap, then a merged item.
+  const MERGE_AFTER = 0.06;
 
   class CupWorld {
     constructor(height) {
@@ -1562,7 +1565,7 @@ button { font: inherit; color: inherit; }
 
     add(item, x, y, vy) {
       const r = radiusOf(item);
-      const b = { id: ++this.uid, item, r, r0: r, rT: r, x, y, px: x, py: y - vy * STEP, age: 0, over: 0, dead: false, merging: false, contact: false };
+      const b = { id: ++this.uid, item, r, r0: r, rT: r, x, y, px: x, py: y - vy * STEP, age: 0, over: 0, dead: false, mate: null, mt: 0, contact: false };
       this.bodies.push(b);
       return b;
     }
@@ -1589,10 +1592,7 @@ button { font: inherit; color: inherit; }
             const b = B[j];
             const dx = b.x - a.x, dy = b.y - a.y, rs = a.r + b.r, d2 = dx * dx + dy * dy;
             if (d2 >= rs * rs) continue;
-            if (it === 0 && a.item === b.item && !a.merging && !b.merging) {
-              a.merging = b.merging = true;
-              (merges || (merges = [])).push([a, b]);
-            }
+            if (it === 0 && a.item === b.item && !a.mate && !b.mate) { a.mate = b; b.mate = a; a.mt = b.mt = 0; }
             const d = Math.sqrt(d2) || 1e-4, nx = dx / d, ny = dy / d, push = (rs - d) * 0.8;
             const ma = a.r * a.r, mb = b.r * b.r, inv = 1 / (ma + mb);
             const ax = nx * push * mb * inv, ay = ny * push * mb * inv, bx = nx * push * ma * inv, by = ny * push * ma * inv;
@@ -1612,6 +1612,19 @@ button { font: inherit; color: inherit; }
         if (b.contact) { b.px += (b.x - b.px) * FRICTION; b.py += (b.y - b.py) * FRICTION; }
         if (b.py - b.y > MAX_RISE * h) b.py = b.y + MAX_RISE * h;
       }
+      // A pair that touched stays touching until it fuses: if a bounce opened a gap, it is pulled shut (weighted by
+      // size), which also takes the bounce out.
+      for (const a of B) {
+        const m = a.mate;
+        if (!m || a.id > m.id) continue;
+        a.mt += h;
+        const dx = m.x - a.x, dy = m.y - a.y, d = Math.sqrt(dx * dx + dy * dy) || 1e-4, rs = a.r + m.r;
+        if (d > rs) {
+          const k = (d - rs) / d, wa = (m.r * m.r) / (a.r * a.r + m.r * m.r);
+          a.x += dx * k * wa; a.y += dy * k * wa; m.x -= dx * k * (1 - wa); m.y -= dy * k * (1 - wa);
+        }
+        if (a.mt >= MERGE_AFTER) (merges || (merges = [])).push([a, m]);
+      }
       if (!merges) return;
       for (const [a, b] of merges) {
         if (a.dead || b.dead) continue;
@@ -1623,10 +1636,9 @@ button { font: inherit; color: inherit; }
         this.events.push({ item, x, y });
         if (ITEMS[item].tier === TOP) continue; // served straight out of the cup: the top of a chain never takes up room
         B.push({ id: ++this.uid, item, r: a.r, r0: a.r, rT: radiusOf(item), x, y, px: x - vx, py: y - vy,
-          age: Math.max(a.age, b.age), over: 0, dead: false, merging: false, contact: false });
+          age: Math.max(a.age, b.age), over: 0, dead: false, mate: null, mt: 0, contact: false });
       }
       this.bodies = B.filter((b) => !b.dead);
-      for (const b of this.bodies) b.merging = false;
     }
 
     // Where a falling item first touches something: what the guide line and ghost outline show.
@@ -1670,6 +1682,10 @@ button { font: inherit; color: inherit; }
   /* ================= Cup scene ================= */
   // Cup drawing extents in cup units: room for the fill marks on the left, the handle on the right.
   const WALL = 2.6, SAUCER_RX = 58, HANDLE_RIGHT = 112;
+  const NEXT_FONT = '700 11.5px ' + BODY; // the "POI" / "NEXT" tag on the next-item card
+  // After a drop, the waiting item lifts for a moment, then slides into the hand, arriving as the hand frees up (the
+  // 0.3 s drop cooldown), once the dropped item has fallen clear. The new next item pops in after the old one left.
+  const FLY_DELAY = 0.08, FLY_TIME = 0.22, POP_DELAY = 0.14;
   // Fill marks, like the lines on a milk jug. A mark is kept once reached and serving pays its tip; only a spill
   // loses it. Placed with the balance sims so an average player reaches +25 in nearly every cup and +50 in most.
   const FILL_BONUS = [
@@ -1703,7 +1719,8 @@ button { font: inherit; color: inherit; }
       this.ending = null; this.endT = 0; this.reported = false; this.stamp = null;
       this.ghost = this.tutorial;
       this.layout();
-      this.refreshHint(); this.refreshNext(); this.refreshServe();
+      this.nextPop = 0; this.fly = null; // the next item pops into its card; after a drop it slides into the hand
+      this.refreshHint(); this.refreshServe();
       // The passage bonus arrives with the cup: the status capsule announces it for a moment while the counter takes it.
       if (this.passBonus) { this.bonusNote = 2.2; this.refreshServe(); haptic([10, 30, 10]); }
       cv.setAttribute('aria-label', t('cupLabel'));
@@ -1732,13 +1749,24 @@ button { font: inherit; color: inherit; }
       this.hoverY = -(maxR + 3);
       // The fill-mark labels ("+50 mance") keep a fixed pixel size left of the cup, so their width is measured; the rest
       // of the drawing scales, from the labels' right edge to the handle.
-      const labelW = amountRuns(ctx, FILL_BONUS[FILL_BONUS.length - 1].tips, 11).width;
+      // That column is at least 72 px wide: it also holds the next-item card, on the held item's row.
+      const colW = Math.max(72, amountRuns(ctx, FILL_BONUS[FILL_BONUS.length - 1].tips, 11).width);
       const unitsW = HANDLE_RIGHT + WALL + 5, below = this.world.CH + 9, totalH = 2 * maxR + 4 + below;
-      this.s = Math.max(0.5, Math.min((VW - labelW) / unitsW, (floor - top) / totalH));
-      this.marksLeft = (VW - labelW - unitsW * this.s) / 2;
-      this.ox = this.marksLeft + labelW + (WALL + 5) * this.s;
+      this.s = Math.max(0.5, Math.min((VW - colW) / unitsW, (floor - top) / totalH));
+      this.marksLeft = (VW - colW - unitsW * this.s) / 2;
+      this.ox = this.marksLeft + colW + (WALL + 5) * this.s;
       this.oy = floor - below * this.s;
       this.trackY = floor + aimZone * 0.36;
+      // The next item waits in a card left of the cup, on the held item's row, so the queue reads at a glance. It sits
+      // between the hint above and the top fill mark below, and left of the fill pointer.
+      const hintBottom = this.oy + (this.hoverY - maxR - 1) * this.s - 10;
+      const markTop = this.oy + this.world.CH * (1 - FILL_BONUS[FILL_BONUS.length - 1].at) * this.s - 9;
+      const left = Math.max(8, this.marksLeft), right = this.ox - (WALL + 7) * this.s;
+      ctx.font = NEXT_FONT; const tagW = ctx.measureText(t('next').toUpperCase()).width;
+      const R = clamp(Math.min(26, (right - left - 16) / 2, (markTop - hintBottom - 12 - 28) / 2), 12, 26);
+      const w = Math.min(right - left, Math.max(2 * R + 16, tagW + 20)), h = 2 * R + 28;
+      const cy = clamp(this.oy + this.hoverY * this.s, hintBottom + 6 + 20 + R, markTop - 6 - 8 - R); // token centre
+      this.nextCard = { x: (left + right - w) / 2, y: cy - R - 20, w, h, R, cx: (left + right) / 2, cy };
       placeHint(this.oy + (this.hoverY - maxR - 1) * this.s - 10 - HINT_H, Math.max(0, this.marksLeft));
     }
 
@@ -1775,7 +1803,8 @@ button { font: inherit; color: inherit; }
       this.aimX = clamp(this.aimX, radiusOf(this.held), this.world.CW - radiusOf(this.held));
       if (this.hintStage === 0) this.hintStage = 1;
       haptic(8);
-      this.refreshHint(); this.refreshNext();
+      this.nextPop = -POP_DELAY; this.fly = { t: 0 };
+      this.refreshHint();
     }
 
     serve() { this.end('served'); }
@@ -1788,12 +1817,6 @@ button { font: inherit; color: inherit; }
       else if (this.drops < this.carried.length) setHint(t('hintMerge2')); // the maze's items drop first: teach the merge
       else if (!this.tutorial) setHint(back);
       else setHint([t('hintMerge1'), t('hintMerge2'), back][this.hintStage]);
-    }
-
-    refreshNext() {
-      const nc = $('#nextCv'), c = nc.getContext('2d');
-      c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, nc.width, nc.height);
-      drawToken(c, this.next, nc.width / 2, nc.height / 2, 14 + (radiusOf(this.next) / TIER_R[2]) * 18);
     }
 
     // The bottom bar: the capsule names the next mark; Serve appears under it once a mark is reached (or something
@@ -1860,6 +1883,8 @@ button { font: inherit; color: inherit; }
       if (this.cooldown > 0) { this.cooldown -= dt; if (this.cooldown <= 0) this.readyT = 0; }
       if (this.bonusNote > 0) { this.bonusNote -= dt; if (this.bonusNote <= 0) this.refreshServe(); }
       else this.readyT += dt;
+      this.nextPop += dt;
+      if (this.fly) this.fly.t += dt;
 
       this.acc = Math.min(this.acc + dt, 0.1);
       while (this.acc >= STEP) { this.world.step(STEP); this.acc -= STEP; }
@@ -1970,7 +1995,7 @@ button { font: inherit; color: inherit; }
       // The held item, its landing column and a ghost of where it first touches.
       if (!this.ending && this.cooldown <= 0) {
         const r = radiusOf(this.held), x = clamp(this.aimX, r, CW - r), ly = w.landingY(x, r);
-        const appear = calm() ? 1 : clamp(this.readyT / 0.15, 0, 1);
+        const appear = calm() || this.fly ? 1 : clamp(this.readyT / 0.15, 0, 1);
         if (ly - r > this.hoverY + r) {
           c.globalAlpha = 0.55 * appear; c.setLineDash([2, 2]); c.lineWidth = 1.6 * px; c.strokeStyle = theme.ink;
           c.beginPath(); c.moveTo(x, this.hoverY + r + 1); c.lineTo(x, ly - r); c.stroke();
@@ -2010,6 +2035,7 @@ button { font: inherit; color: inherit; }
         c.fillStyle = this.level && lvl.at <= this.level.at ? theme.ink : theme.ink2;
         drawRuns(c, amountRuns(c, lvl.tips, 11), this.ox + (-WALL - 5) * s, this.oy + CH * (1 - lvl.at) * s, 'right');
       }
+      if (!this.ending) this.drawNext(c);
       const popSize = clamp(VW * 0.05, 15, 20);
       c.lineJoin = 'round';
       for (const f of this.fx) {
@@ -2023,6 +2049,21 @@ button { font: inherit; color: inherit; }
 
       if (this.ghost) this.drawGhost(c);
       if (this.stamp) drawStamp(c, this.stamp.text, VW / 2, this.oy + CH * s * 0.45, this.stamp.t, this.stamp.warn);
+    }
+
+    // The next item: a white card with its tag, the item sized by tier (small, medium, large). After a drop the item
+    // that was waiting slides from the card to the hand while the new one pops in, so the order is never in doubt.
+    drawNext(c) {
+      const n = this.nextCard, sizeOf = (item) => n.R * [0.72, 0.86, 1][ITEMS[item].tier];
+      rr(c, n.x, n.y, n.w, n.h, 12); c.fillStyle = theme.card; c.fill(); c.lineWidth = 2; c.strokeStyle = theme.ink; c.stroke();
+      c.font = NEXT_FONT; c.fillStyle = theme.ink2; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+      c.fillText(t('next').toUpperCase(), n.x + n.w / 2, n.y + 15);
+      const pop = calm() ? 1 : easeOutBack(clamp(this.nextPop / 0.22, 0, 1));
+      if (pop > 0) drawToken(c, this.next, n.cx, n.cy, sizeOf(this.next) * pop);
+      if (!this.fly || this.cooldown <= 0 || calm()) return;
+      const k = clamp((this.fly.t - FLY_DELAY) / FLY_TIME, 0, 1), e = k * k * (3 - 2 * k), r = radiusOf(this.held);
+      const tx = this.ox + clamp(this.aimX, r, this.world.CW - r) * this.s, ty = this.oy + this.hoverY * this.s;
+      drawToken(c, this.held, n.cx + (tx - n.cx) * e, n.cy + (ty - n.cy) * e, sizeOf(this.held) + (r * this.s - sizeOf(this.held)) * e);
     }
 
     // The aim track mirrors the finger: absolute x mapping, so the thumb stays low and never covers the cup.
@@ -2068,7 +2109,6 @@ button { font: inherit; color: inherit; }
     $('#top').hidden = false; $('#status').hidden = false;
     $('#hudRound').textContent = t('round', { n: visit.round });
     $('#hudName').innerHTML = headerHTML(t(kind));
-    $('#nextBox').hidden = kind !== 'merge';
     $('#btnRestart').hidden = kind !== 'maze';
     $('#bottomBar').hidden = false; $('#btnHint').hidden = true;
     $('#btnServe').hidden = true; $('#btnServe').classList.remove('urgent');
@@ -2466,7 +2506,6 @@ button { font: inherit; color: inherit; }
   function refreshTheme() {
     readTheme();
     if (!$('#home').hidden) drawChain($('#chainCv'));
-    if (scene && scene.kind === 'merge') scene.refreshNext();
   }
   const relayout = () => { resize(); if (!$('#home').hidden) drawChain($('#chainCv')); };
   onMediaChange(window.matchMedia('(prefers-color-scheme: dark)'), refreshTheme);

@@ -1,6 +1,6 @@
 # Pausa Caffè
 
-A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 187 KB (77 KB compressed), the header font included.
+A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 191 KB (78 KB compressed), the header font included.
 
 - **Unisci le coppie / Join the pairs**: a no-crossing maze. Each pair is two identical items. Draw a path between them without crossing other paths. Some boards have a **passage**: an optional extra challenge for one pair.
 - **Riempi la tazza / Fill the cup**: a merge game with two chains. Coffee: bean → espresso cup → moka → coffee machine. Milk: milk → cappuccino → latte macchiato → XXL latte. The top item of each chain is served straight out of the cup for +15 mance. The cup ends when something rests above the rim, or when the player taps **Servi / Serve**.
@@ -39,7 +39,7 @@ The passage changes with the level:
 
 The item rotates bean → milk → cup → cappuccino with the level, so every maze item gets passages. If a board offers no passage at the level's cost, the generator tries other boards first, and only near its time limit accepts one costing +2 to +6.
 
-The first passage a player meets comes with a demo: a dotted ghost of its pair walks through the tile, breathing slowly (one breath every 4 s), and the reward tag breathes with it until the pair crosses. The **Hint** button reveals the passage pair's route first while the passage is still open.
+The first passage a player meets comes with a demo: a dotted ghost of its pair walks through the tile, breathing slowly (one breath every 4 s), and the reward tag breathes with it until the pair crosses. The **Hint** button reveals the passage pair's route first while the passage is still open. A revealed route is drawn under the paths and disappears once its pair is joined; if that path is cut later, the route comes back.
 
 If the player finishes the visit right after the maze, an unclaimed passage bonus is added to the visit receipt, so nothing earned is lost.
 
@@ -61,15 +61,21 @@ The cup is endless, so serving is the win, and every loss has to feel fair.
 
 | Cup | Player | Cup lasts | +10 | +25 | +50 |
 |---|---|---|---|---|---|
-| Normal (104) | Careless | 29 s | 100% · 12 s | 100% · 21 s | 92% · 26 s |
-| Normal (104) | Average | 75 s | 100% · 15 s | 100% · 31 s | 96% · 65 s |
-| Normal (104) | Strong | 104 s | 100% · 17 s | 100% · 42 s | 100% · 52 s |
-| Tight (92) | Average | 55 s | 100% | 100% | 83% |
-| Roomy (116) | Average | 99 s | 100% | 100% | 100% |
+| Normal (104) | Careless | 34 s | 100% · 12 s | 100% · 19 s | 96% · 25 s |
+| Normal (104) | Average | 74 s | 100% · 15 s | 100% · 37 s | 96% · 57 s |
+| Normal (104) | Strong | 102 s | 100% · 24 s | 100% · 62 s | 100% · 87 s |
+| Tight (92) | Average | 42 s | 100% | 100% | 96% |
+| Roomy (116) | Average | 87 s | 100% | 100% | 100% |
+
+Any change to the physics reshuffles every simulated cup, so 24 runs move a few seconds either way. When merges started waiting for a visible contact (below), 60 runs per row on the old and new builds gave an average player's cup 51 → 48 s (tight), 70 → 73 s (normal) and 87 → 81 s (roomy), with the top mark reached in 93/97/100% of cups before and 93/98/98% after: the same balance.
 
 No cup size, player or strategy produced a cup that never ends. In longer runs of the same physics (24 runs per player, 12 for the strong one), dumping everything against one wall or in the middle loses faster than playing honestly.
 
 How the rise rate was chosen (same simulator, average player): 0.2 per drop gave 118 s cups, 0.35 gave 81 s, **0.5 gave 57 s with the +50 mark still reached in 96% of cups**, and 0.7 squeezed strong and average players together (78 s vs 59 s), so skill stopped mattering.
+
+### Merges you can see
+
+Two identical items that touch stay stuck together for 0.06 s (about 4 frames at 60 fps), then fuse. Any touch still merges, and a bounce that opens a gap is pulled shut. Before, they fused on the first physics step of contact: a falling item moves several units per frame, so the last frame the player saw still showed a gap of up to 4 units (about 10 px), and no frame ever showed them touching. Now 3 to 4 frames show them touching.
 
 ### Calmer merges
 
@@ -78,6 +84,7 @@ A merged item swells in over about 0.25 s and pushes its neighbours aside withou
 ## Layout rules
 
 - **Tutorial hints** sit in a cream capsule right above the content. Its left edge is on the board's left edge in the maze, and on the left edge of the cup drawing (its measuring marks) in the cup. The capsule covers only its text: the browser balances the line breaks at full width, the script freezes those breaks, and the capsule shrinks to the longest line.
+- **Next item**: a white card tagged "POI" / "NEXT" sits left of the cup, on the held item's row, in a column at least 72 px wide that it shares with the fill-mark labels. The item inside is sized by tier (small, medium, large). After a drop the waiting item lifts for 80 ms, then slides into the hand in 220 ms, arriving as the 0.3 s drop cooldown ends and the dropped item has fallen clear; the new one pops into the card once the old one has left. With reduced motion it simply appears.
 - **Status** ("Unite 0 su 3", "Prossima tacca: +25 mance") sits in a moka-blue capsule, centred, with Restart, Hint and Serve centred right below it, in thumb reach. Its capitals are centred vertically too: trimmed to cap height where the browser supports `text-box`, padded to match elsewhere.
 - **Button colours follow the items**: green like the espresso cup for moving forward (Play, Serve, Next), pink like the latte for Play again, and orange only for a rim warning. White on the green is 3.4:1, so those labels are at least 19 px bold (large text); Play again uses dark ink on pink (5.9:1).
 - **Background**: a cream ground, rgb(235, 228, 210), in the light theme. The board, the cup and the receipt stay white.
