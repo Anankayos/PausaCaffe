@@ -1,5 +1,7 @@
 # Pausa Caffè
 
+**▶ Play it: [anankayos.github.io/PausaCaffe](https://anankayos.github.io/PausaCaffe/)** (any browser, phone or desktop; add `?playtest` for the designer tools)
+
 A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 191 KB (78 KB compressed), the header font included.
 
 - **Unisci le coppie / Join the pairs**: a no-crossing maze. Each pair is two identical items. Draw a path between them without crossing other paths. Some boards have a **passage**: an optional extra challenge for one pair.
@@ -84,7 +86,8 @@ A merged item swells in over about 0.25 s and pushes its neighbours aside withou
 ## Layout rules
 
 - **Tutorial hints** sit in a cream capsule right above the content. Its left edge is on the board's left edge in the maze, and on the left edge of the cup drawing (its measuring marks) in the cup. The capsule covers only its text: the browser balances the line breaks at full width, the script freezes those breaks, and the capsule shrinks to the longest line.
-- **Next item**: a white card tagged "POI" / "NEXT" sits left of the cup, on the held item's row, in a column at least 72 px wide that it shares with the fill-mark labels. The item inside is sized by tier (small, medium, large). After a drop the waiting item lifts for 80 ms, then slides into the hand in 220 ms, arriving as the 0.3 s drop cooldown ends and the dropped item has fallen clear; the new one pops into the card once the old one has left. With reduced motion it simply appears.
+- **Next item and aim bar**: in the cup, the bottom bar's status row spans the screen minus its 16 px margins: a white "POI" / "NEXT" card with the next item on the left, the moka-blue capsule filling the rest. The aim bar above it is drawn to exactly the same ends, measured from the row itself. The item in the card is sized by tier (small, medium, large) and pops in after each drop. The capsule's text wraps to two balanced lines only where one won't fit (the longest texts on a 320 px phone).
+- **Aiming is proportional**: the bar's whole travel covers every column the held item can drop in, wall to wall, so the bar is wider than the cup and a finger move places the item more finely. The knob shows where the item will fall, and the dashed guide under the item shows it in the cup.
 - **Status** ("Unite 0 su 3", "Prossima tacca: +25 mance") sits in a moka-blue capsule, centred, with Restart, Hint and Serve centred right below it, in thumb reach. Its capitals are centred vertically too: trimmed to cap height where the browser supports `text-box`, padded to match elsewhere.
 - **Button colours follow the items**: green like the espresso cup for moving forward (Play, Serve, Next), pink like the latte for Play again, and orange only for a rim warning. White on the green is 3.4:1, so those labels are at least 19 px bold (large text); Play again uses dark ink on pink (5.9:1).
 - **Background**: a cream ground, rgb(235, 228, 210), in the light theme. The board, the cup and the receipt stay white.
@@ -109,7 +112,7 @@ Tested in headless Chromium, including touch-only and mouse-only runs with Point
 
 ## Try it on your phone
 
-`index.html` runs from any static host. Upload the folder to Netlify Drop, GitHub Pages or itch.io (as an HTML5 game, zipped). Then point a QR code at the shortest URL you can get.
+It is live on GitHub Pages: [anankayos.github.io/PausaCaffe](https://anankayos.github.io/PausaCaffe/). Every push to `main` updates it within a minute or two. `index.html` also runs from any other static host (Netlify Drop, or itch.io as a zipped HTML5 game). Point a QR code at the shortest URL you can get.
 
 QR tip: write the URL in capitals (`HTTPS://ABC.IT/7`). Uppercase uses the denser "alphanumeric" QR mode, so the code stays small even with error-correction level Q. Make the server path case-insensitive.
 

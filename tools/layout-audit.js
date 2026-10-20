@@ -69,11 +69,16 @@ const CLEAR = 2; // px of air required between boxes
     if (home) {
       ['.tear span', '.packet-eyebrow', '#homeTitle', '#chainCv', '.packet-tag', '.packet-net', '#homeBest', '#btnPlay', '#btnLang', '#btnSettings'].forEach((s) => dom(s));
     } else {
-      ['#btnQuit', '#hudRound', '#hudName', '#hudTips', '#statusPill', '#btnRestart', '#btnHint', '#btnServe'].forEach((s) => dom(s));
+      ['#btnQuit', '#hudRound', '#hudName', '#hudTips', '#nextCard', '#statusPill', '#btnRestart', '#btnHint', '#btnServe'].forEach((s) => dom(s));
       const hint = document.getElementById('hint');
       if (vis(hint) && hint.textContent.trim()) { box('#hint', hint.getBoundingClientRect(), 'text'); if (hint.scrollHeight > hint.clientHeight + 1) clipped.push('#hint'); }
       const pill = document.getElementById('statusPill');
-      if (pill.textContent && pill.scrollWidth > pill.clientWidth + 1) clipped.push('#statusPill');
+      if (pill.textContent) {
+        // Clipped sideways, or a line of text outside the capsule (the cup's capsule wraps; three lines would spill).
+        const pr = pill.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(pill);
+        const out = Array.prototype.some.call(rg.getClientRects(), (r) => r.top < pr.top - 1 || r.bottom > pr.bottom + 1);
+        if (pill.scrollWidth > pill.clientWidth + 1 || out) clipped.push('#statusPill');
+      }
       const name = document.getElementById('hudName');
       if (name.scrollHeight > name.clientHeight + 1) clipped.push('#hudName');
       const s = window.__pausaCaffe.scene, cv = document.getElementById('cv').getBoundingClientRect(), X = cv.left, Y = cv.top;
@@ -84,10 +89,8 @@ const CLEAR = 2; // px of air required between boxes
         box('cup', { left: X + s.marksLeft, top: Y + s.oy + (s.hoverY - maxR) * s.s, right: X + s.ox + 112 * s.s, bottom: Y + s.oy + (CH + 9) * s.s, width: 1, height: 1 }, 'content');
         c.font = '600 13px "Helvetica Neue", Helvetica, Arial, sans-serif';
         const label = '←  ' + (document.documentElement.lang === 'it' ? 'trascina per mirare' : 'drag to aim') + '  →', w = c.measureText(label).width;
-        box('aim label', { left: X + s.ox + 50 * s.s - w / 2, top: Y + s.trackY + 20, right: X + s.ox + 50 * s.s + w / 2, bottom: Y + s.trackY + 36, width: 1, height: 1 }, 'text');
-        box('aim track', { left: X + s.ox + 8 * s.s - 15, top: Y + s.trackY - 15, right: X + s.ox + 92 * s.s + 15, bottom: Y + s.trackY + 15, width: 1, height: 1 }, 'content');
-        const n = s.nextCard; // the next-item card, with its tag inside
-        if (n && !s.ending) box('next card', { left: X + n.x, top: Y + n.y, right: X + n.x + n.w, bottom: Y + n.y + n.h, width: 1, height: 1 }, 'next');
+        box('aim label', { left: X + (s.barL + s.barR) / 2 - w / 2, top: Y + s.trackY + 20, right: X + (s.barL + s.barR) / 2 + w / 2, bottom: Y + s.trackY + 36, width: 1, height: 1 }, 'text');
+        box('aim track', { left: X + s.barL, top: Y + s.trackY - 15, right: X + s.barR, bottom: Y + s.trackY + 15, width: 1, height: 1 }, 'content');
         c.font = '700 11px "Helvetica Neue", Helvetica, Arial, sans-serif';
         for (const m of F) {
           const wm = c.measureText('+' + m.tips).width, rx = X + s.ox + (-2.6 - 5) * s.s, cy = Y + s.oy + CH * (1 - m.at) * s.s;
@@ -100,7 +103,6 @@ const CLEAR = 2; // px of air required between boxes
       const a = out[i], b = out[j];
       if ((a.kind === 'label' && b.name === 'cup') || (b.kind === 'label' && a.name === 'cup')) continue; // the marks belong to the cup
       if (a.kind === 'label' && b.kind === 'label') continue;
-      if ((a.kind === 'next' && b.name === 'cup') || (b.kind === 'next' && a.name === 'cup')) continue; // the card sits in the cup's drawing area
       if (a.kind === 'content' && b.kind === 'content') continue;
       const gapX = Math.max(a.l - b.r, b.l - a.r), gapY = Math.max(a.t - b.b, b.t - a.b);
       if (gapX < CLEAR && gapY < CLEAR) hits.push(a.name + ' × ' + b.name + ' (' + Math.round(Math.max(gapX, gapY)) + ' px)');

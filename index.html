@@ -174,6 +174,20 @@ button { font: inherit; color: inherit; }
 }
 .pill { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* one line, always */
 .pill:empty { visibility: hidden; }
+/* In the cup the status row spans the bottom bar, exactly as long as the aim bar above it: the next item on the left,
+   the capsule filling the rest. The capsule's text wraps to two balanced lines only where one line won't fit. */
+.status-row { display: flex; justify-content: center; max-width: 100%; }
+.status-row.cup { align-self: stretch; height: 40px; gap: 8px; }
+.status-row.cup .pill {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 14px;
+  white-space: normal; text-wrap: balance; line-height: 1.15;
+}
+.next-card {
+  flex: none; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; border-radius: 999px;
+  background: var(--card); box-shadow: inset 0 0 0 2px var(--ink);
+}
+.next-tag { font-family: var(--font-body); font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+#nextCv { width: 34px; height: 34px; }
 /* The actions sit right below the capsule, centred and in thumb reach. The row keeps its height so nothing jumps. */
 .actions { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; pointer-events: auto; }
 .btn.small { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; font-size: 16px; }
@@ -334,7 +348,10 @@ button { font: inherit; color: inherit; }
   </div>
 
   <div class="bottombar layer" id="bottomBar" hidden>
-    <p class="pill" id="statusPill" aria-live="polite"></p>
+    <div class="status-row" id="statusRow">
+      <div class="next-card" id="nextCard" hidden aria-hidden="true"><span class="next-tag" data-i18n="next"></span><canvas id="nextCv" width="68" height="68"></canvas></div>
+      <p class="pill" id="statusPill" aria-live="polite"></p>
+    </div>
     <div class="actions">
       <button class="btn ghost small" id="btnRestart" type="button" hidden>
         <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.3 8.6a4.8 4.8 0 1 0 1.4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M2.6 2.1v3h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1682,10 +1699,8 @@ button { font: inherit; color: inherit; }
   /* ================= Cup scene ================= */
   // Cup drawing extents in cup units: room for the fill marks on the left, the handle on the right.
   const WALL = 2.6, SAUCER_RX = 58, HANDLE_RIGHT = 112;
-  const NEXT_FONT = '700 11.5px ' + BODY; // the "POI" / "NEXT" tag on the next-item card
-  // After a drop, the waiting item lifts for a moment, then slides into the hand, arriving as the hand frees up (the
-  // 0.3 s drop cooldown), once the dropped item has fallen clear. The new next item pops in after the old one left.
-  const FLY_DELAY = 0.08, FLY_TIME = 0.22, POP_DELAY = 0.14;
+  const KNOB = 15; // the aim knob's radius while dragging: it travels inside the bar's ends
+  const NEXT_PX = 34; // the next-item card's drawing, in CSS px
   // Fill marks, like the lines on a milk jug. A mark is kept once reached and serving pays its tip; only a spill
   // loses it. Placed with the balance sims so an average player reaches +25 in nearly every cup and +50 in most.
   const FILL_BONUS = [
@@ -1719,7 +1734,7 @@ button { font: inherit; color: inherit; }
       this.ending = null; this.endT = 0; this.reported = false; this.stamp = null;
       this.ghost = this.tutorial;
       this.layout();
-      this.nextPop = 0; this.fly = null; // the next item pops into its card; after a drop it slides into the hand
+      this.nextPop = 0; // the next item pops into its card
       this.refreshHint(); this.refreshServe();
       // The passage bonus arrives with the cup: the status capsule announces it for a moment while the counter takes it.
       if (this.passBonus) { this.bonusNote = 2.2; this.refreshServe(); haptic([10, 30, 10]); }
@@ -1744,35 +1759,38 @@ button { font: inherit; color: inherit; }
       const top = hudBottom() + 8 + HINT_H + 14;
       // Below the cup: the aim track, then the bottom bar where Serve waits under the thumb.
       const aimZone = clamp(VH * 0.1, 56, 84);
-      const floor = VH - BAR_H + 10 - aimZone;
+      const floor = VH - BAR_H - aimZone; // the cup's status row is 40 px tall, 10 more than the maze's capsule
       const maxR = TIER_R[2]; // the biggest item that can be held: a carried moka or latte
       this.hoverY = -(maxR + 3);
       // The fill-mark labels ("+50 mance") keep a fixed pixel size left of the cup, so their width is measured; the rest
       // of the drawing scales, from the labels' right edge to the handle.
-      // That column is at least 72 px wide: it also holds the next-item card, on the held item's row.
-      const colW = Math.max(72, amountRuns(ctx, FILL_BONUS[FILL_BONUS.length - 1].tips, 11).width);
+      const colW = amountRuns(ctx, FILL_BONUS[FILL_BONUS.length - 1].tips, 11).width;
       const unitsW = HANDLE_RIGHT + WALL + 5, below = this.world.CH + 9, totalH = 2 * maxR + 4 + below;
       this.s = Math.max(0.5, Math.min((VW - colW) / unitsW, (floor - top) / totalH));
       this.marksLeft = (VW - colW - unitsW * this.s) / 2;
       this.ox = this.marksLeft + colW + (WALL + 5) * this.s;
       this.oy = floor - below * this.s;
       this.trackY = floor + aimZone * 0.36;
-      // The next item waits in a card left of the cup, on the held item's row, so the queue reads at a glance. It sits
-      // between the hint above and the top fill mark below, and left of the fill pointer.
-      const hintBottom = this.oy + (this.hoverY - maxR - 1) * this.s - 10;
-      const markTop = this.oy + this.world.CH * (1 - FILL_BONUS[FILL_BONUS.length - 1].at) * this.s - 9;
-      const left = Math.max(8, this.marksLeft), right = this.ox - (WALL + 7) * this.s;
-      ctx.font = NEXT_FONT; const tagW = ctx.measureText(t('next').toUpperCase()).width;
-      const R = clamp(Math.min(26, (right - left - 16) / 2, (markTop - hintBottom - 12 - 28) / 2), 12, 26);
-      const w = Math.min(right - left, Math.max(2 * R + 16, tagW + 20)), h = 2 * R + 28;
-      const cy = clamp(this.oy + this.hoverY * this.s, hintBottom + 6 + 20 + R, markTop - 6 - 8 - R); // token centre
-      this.nextCard = { x: (left + right - w) / 2, y: cy - R - 20, w, h, R, cx: (left + right) / 2, cy };
+      // The aim bar spans exactly the status row below it (the next-item card plus the capsule): the screen minus its
+      // margins. Measured from the row itself, so the two ends always line up.
+      const row = $('#statusRow').getBoundingClientRect(), cvr = cv.getBoundingClientRect();
+      this.barL = row.width > 0 ? row.left - cvr.left : 16;
+      this.barR = row.width > 0 ? row.right - cvr.left : VW - 16;
+      const nc = $('#nextCv');
+      nc.width = Math.round(NEXT_PX * DPR); nc.height = Math.round(NEXT_PX * DPR);
       placeHint(this.oy + (this.hoverY - maxR - 1) * this.s - 10 - HINT_H, Math.max(0, this.marksLeft));
     }
 
+    // Aiming is proportional: the bar's whole travel covers every column the held item can drop in, from the left wall
+    // to the right one. The bar is wider than the cup, so a finger move places the item more finely.
     setAim(px) {
-      const r = radiusOf(this.held);
-      this.aimX = clamp((px - this.ox) / this.s, r, this.world.CW - r);
+      const r = radiusOf(this.held), k = clamp((px - this.barL - KNOB) / (this.barR - this.barL - 2 * KNOB), 0, 1);
+      this.aimX = r + k * (this.world.CW - 2 * r);
+    }
+
+    aimToPx(aimX) {
+      const r = radiusOf(this.held), span = this.world.CW - 2 * r;
+      return this.barL + KNOB + clamp(span > 0 ? (aimX - r) / span : 0.5, 0, 1) * (this.barR - this.barL - 2 * KNOB);
     }
 
     down(x) {
@@ -1803,7 +1821,7 @@ button { font: inherit; color: inherit; }
       this.aimX = clamp(this.aimX, radiusOf(this.held), this.world.CW - radiusOf(this.held));
       if (this.hintStage === 0) this.hintStage = 1;
       haptic(8);
-      this.nextPop = -POP_DELAY; this.fly = { t: 0 };
+      this.nextPop = 0;
       this.refreshHint();
     }
 
@@ -1846,6 +1864,7 @@ button { font: inherit; color: inherit; }
     end(kind) {
       if (this.ending) return;
       this.ending = kind; this.endT = 0; this.aiming = false;
+      $('#nextCard').hidden = true; // nothing comes next once the cup is served or spilled
       this.banked = kind === 'served' ? this.level : null;
       // Serving while something is already over the rim still counts: the warning is a chance, not a verdict.
       this.clutch = kind === 'served' && this.danger;
@@ -1884,7 +1903,6 @@ button { font: inherit; color: inherit; }
       if (this.bonusNote > 0) { this.bonusNote -= dt; if (this.bonusNote <= 0) this.refreshServe(); }
       else this.readyT += dt;
       this.nextPop += dt;
-      if (this.fly) this.fly.t += dt;
 
       this.acc = Math.min(this.acc + dt, 0.1);
       while (this.acc >= STEP) { this.world.step(STEP); this.acc -= STEP; }
@@ -1995,7 +2013,7 @@ button { font: inherit; color: inherit; }
       // The held item, its landing column and a ghost of where it first touches.
       if (!this.ending && this.cooldown <= 0) {
         const r = radiusOf(this.held), x = clamp(this.aimX, r, CW - r), ly = w.landingY(x, r);
-        const appear = calm() || this.fly ? 1 : clamp(this.readyT / 0.15, 0, 1);
+        const appear = calm() ? 1 : clamp(this.readyT / 0.15, 0, 1);
         if (ly - r > this.hoverY + r) {
           c.globalAlpha = 0.55 * appear; c.setLineDash([2, 2]); c.lineWidth = 1.6 * px; c.strokeStyle = theme.ink;
           c.beginPath(); c.moveTo(x, this.hoverY + r + 1); c.lineTo(x, ly - r); c.stroke();
@@ -2035,7 +2053,7 @@ button { font: inherit; color: inherit; }
         c.fillStyle = this.level && lvl.at <= this.level.at ? theme.ink : theme.ink2;
         drawRuns(c, amountRuns(c, lvl.tips, 11), this.ox + (-WALL - 5) * s, this.oy + CH * (1 - lvl.at) * s, 'right');
       }
-      if (!this.ending) this.drawNext(c);
+      this.drawNext();
       const popSize = clamp(VW * 0.05, 15, 20);
       c.lineJoin = 'round';
       for (const f of this.fx) {
@@ -2051,30 +2069,24 @@ button { font: inherit; color: inherit; }
       if (this.stamp) drawStamp(c, this.stamp.text, VW / 2, this.oy + CH * s * 0.45, this.stamp.t, this.stamp.warn);
     }
 
-    // The next item: a white card with its tag, the item sized by tier (small, medium, large). After a drop the item
-    // that was waiting slides from the card to the hand while the new one pops in, so the order is never in doubt.
-    drawNext(c) {
-      const n = this.nextCard, sizeOf = (item) => n.R * [0.72, 0.86, 1][ITEMS[item].tier];
-      rr(c, n.x, n.y, n.w, n.h, 12); c.fillStyle = theme.card; c.fill(); c.lineWidth = 2; c.strokeStyle = theme.ink; c.stroke();
-      c.font = NEXT_FONT; c.fillStyle = theme.ink2; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
-      c.fillText(t('next').toUpperCase(), n.x + n.w / 2, n.y + 15);
+    // The next item, in its card left of the status capsule: sized by tier (small, medium, large), popping in after
+    // each drop. Drawn every frame on the card's own small canvas.
+    drawNext() {
+      const nc = $('#nextCv'), c = nc.getContext('2d'), R = NEXT_PX / 2 - 1;
+      c.setTransform(DPR, 0, 0, DPR, 0, 0); c.clearRect(0, 0, NEXT_PX, NEXT_PX);
+      if (this.ending) return;
       const pop = calm() ? 1 : easeOutBack(clamp(this.nextPop / 0.22, 0, 1));
-      if (pop > 0) drawToken(c, this.next, n.cx, n.cy, sizeOf(this.next) * pop);
-      if (!this.fly || this.cooldown <= 0 || calm()) return;
-      const k = clamp((this.fly.t - FLY_DELAY) / FLY_TIME, 0, 1), e = k * k * (3 - 2 * k), r = radiusOf(this.held);
-      const tx = this.ox + clamp(this.aimX, r, this.world.CW - r) * this.s, ty = this.oy + this.hoverY * this.s;
-      drawToken(c, this.held, n.cx + (tx - n.cx) * e, n.cy + (ty - n.cy) * e, sizeOf(this.held) + (r * this.s - sizeOf(this.held)) * e);
+      if (pop > 0) drawToken(c, this.next, NEXT_PX / 2, NEXT_PX / 2, R * [0.72, 0.86, 1][ITEMS[this.next].tier] * pop);
     }
 
-    // The aim track mirrors the finger: absolute x mapping, so the thumb stays low and never covers the cup.
+    // The aim bar: as long as the status row under it, so the thumb stays low and never covers the cup.
     drawAim(c) {
-      const s = this.s, y = this.trackY;
-      const x0 = this.ox + TIER_R[0] * s, x1 = this.ox + (this.world.CW - TIER_R[0]) * s;
+      const y = this.trackY, x0 = this.barL + 3, x1 = this.barR - 3;
       c.lineCap = 'round'; c.lineWidth = 6; c.strokeStyle = theme.rule;
       c.beginPath(); c.moveTo(x0, y); c.lineTo(x1, y); c.stroke();
       if (!this.ending) {
-        const kx = this.ox + this.aimX * s;
-        c.beginPath(); c.arc(kx, y, this.aiming ? 15 : 11, 0, TAU);
+        const kx = this.aimToPx(this.aimX);
+        c.beginPath(); c.arc(kx, y, this.aiming ? KNOB : 11, 0, TAU);
         c.fillStyle = ITEMS[this.held].color; c.fill(); c.lineWidth = 2.5; c.strokeStyle = theme.casing; c.stroke();
       }
       c.font = '600 13px ' + BODY; c.fillStyle = theme.ink2; c.textAlign = 'center'; c.textBaseline = 'top';
@@ -2082,7 +2094,7 @@ button { font: inherit; color: inherit; }
     }
 
     drawGhost(c) {
-      const range = this.world.CW * this.s * 0.28, cx = this.ox + (this.world.CW / 2) * this.s;
+      const range = (this.barR - this.barL) * 0.28, cx = (this.barL + this.barR) / 2;
       const gx = cx + Math.sin(this.t * 2.2) * range, gy = this.trackY;
       c.save();
       c.beginPath(); c.arc(gx, gy, 22, 0, TAU);
@@ -2111,6 +2123,7 @@ button { font: inherit; color: inherit; }
     $('#hudName').innerHTML = headerHTML(t(kind));
     $('#btnRestart').hidden = kind !== 'maze';
     $('#bottomBar').hidden = false; $('#btnHint').hidden = true;
+    $('#statusRow').classList.toggle('cup', kind === 'merge'); $('#nextCard').hidden = kind !== 'merge';
     $('#btnServe').hidden = true; $('#btnServe').classList.remove('urgent');
     disarmQuit();
     if (kind === 'maze') scene = new MazeScene(save.mazeLevel);
