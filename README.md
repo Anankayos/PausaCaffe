@@ -2,7 +2,7 @@
 
 **▶ Play it: [anankayos.github.io/PausaCaffe](https://anankayos.github.io/PausaCaffe/)** (any browser, phone or desktop; add `?playtest` for the designer tools)
 
-A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 191 KB (78 KB compressed), the header font included.
+A browser prototype of a two-round bar game. One file, no libraries, no external requests: about 193 KB (79 KB compressed), the header font included.
 
 - **Unisci le coppie / Join the pairs**: a no-crossing maze. Each pair is two identical items. Draw a path between them without crossing other paths. Some boards have a **passage**: an optional extra challenge for one pair.
 - **Riempi la tazza / Fill the cup**: a merge game with two chains. Coffee: bean → espresso cup → moka → coffee machine. Milk: milk → cappuccino → latte macchiato → XXL latte. The top item of each chain is served straight out of the cup for +15 mance. The cup ends when something rests above the rim, or when the player taps **Servi / Serve**.
