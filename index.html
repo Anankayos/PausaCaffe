@@ -1226,7 +1226,7 @@ button { font: inherit; color: inherit; }
       }
       this.ghost = null;
       if (this.gateGhost) this.gateGhost.dim = true; // the passage demo fades back but stays until the passage is crossed
-      this.drag = { p, base: this.paths.map((a) => a.slice()), cur };
+      this.drag = { p, base: this.paths.map((a) => a.slice()), cur, fx: x, fy: y }; // fx, fy: the finger, for the drawing
       this.sync();
     }
 
@@ -1245,6 +1245,7 @@ button { font: inherit; color: inherit; }
     move(x, y) {
       const d = this.drag;
       if (!d) return;
+      d.fx = x; d.fy = y;
       const target = this.cellAt(x, y);
       if (target < 0) return;
       const n = this.n;
@@ -1314,6 +1315,21 @@ button { font: inherit; color: inherit; }
       }
       this.passed = passed;
       if (changed) { this.refreshSorted(); this.refreshHint(); }
+    }
+
+    // Where the line being drawn ends on screen: at the finger, projected onto the grid. The path still moves one
+    // cell at a time (crossing a cell's edge takes the cell); only the drawing follows the finger in between, up to
+    // the edge of a cell the line may enter. Before, the line's end sat on the head cell's centre: it trailed half a
+    // cell behind the thumb, then jumped half a cell ahead on entering the next cell, which read as lag.
+    dragTip() {
+      const d = this.drag, cur = d.cur, n = this.n, head = cur[cur.length - 1], [hx, hy] = this.center(head);
+      const dx = d.fx - hx, dy = d.fy - hy, horiz = Math.abs(dx) >= Math.abs(dy), along = horiz ? dx : dy, dir = Math.sign(along);
+      const r = (head / n) | 0, col = head % n;
+      const next = !dir ? -1 : horiz ? (col + dir >= 0 && col + dir < n ? head + dir : -1) : (r + dir >= 0 && r + dir < n ? head + dir * n : -1);
+      const back = next >= 0 && cur.length > 1 && next === cur[cur.length - 2]; // heading back along the line
+      const kind = next >= 0 && !back ? this.classify(next) : 'blocked';
+      const reach = back || kind === 'extend' || kind === 'complete' ? Math.min(Math.abs(along), this.cell / 2) : 0;
+      return { x: hx + (horiz ? dir * reach : 0), y: hy + (horiz ? 0 : dir * reach), back };
     }
 
     flash(cell) {
@@ -1414,11 +1430,14 @@ button { font: inherit; color: inherit; }
         c.strokeStyle = this.pairs[q].color; c.lineWidth = cell * 0.14; c.stroke();
         c.setLineDash([]);
       }
+      const tip = this.drag ? this.dragTip() : null;
       this.pairs.forEach((p, q) => {
-        const path = this.paths[q];
-        if (path.length < 2) return;
+        const path = this.paths[q], pts = path.map((i) => this.center(i));
+        // The line being drawn ends at the finger: past the head cell's centre, or short of it when heading back.
+        if (tip && q === this.drag.p) { if (tip.back) pts.pop(); pts.push([tip.x, tip.y]); }
+        if (pts.length < 2) return;
         c.beginPath();
-        path.forEach((i, k) => { const [x, y] = this.center(i); if (k) c.lineTo(x, y); else c.moveTo(x, y); });
+        pts.forEach(([x, y], k) => { if (k) c.lineTo(x, y); else c.moveTo(x, y); });
         c.strokeStyle = theme.casing; c.lineWidth = w + 5; c.stroke();
         c.strokeStyle = p.color; c.lineWidth = w; c.stroke();
         if (this.complete[q] && !calm()) this.drawFlow(c, path[0] === p.a ? path : path.slice().reverse());
@@ -1436,10 +1455,11 @@ button { font: inherit; color: inherit; }
       if (this.gate) this.drawGateTag(c);
       if (this.gateGhost) this.drawGhostRoute(c, this.gateGhost.route, this.pairs[this.gate.pair].color, this.gateGhost.t, this.gateGhost.dim ? 0.45 : 1);
 
-      // While drawing: a big head that peeks out from under the thumb, plus dots on the cells it can enter next.
+      // While drawing: a halo that peeks out from under the thumb (it follows the finger, clamped to the board), a dot
+      // at the line's end, and dots on the cells the line can enter next.
       if (this.drag) {
         const d = this.drag, color = this.pairs[d.p].color, head = d.cur[d.cur.length - 1];
-        const [hx, hy] = this.center(head);
+        const hx = clamp(d.fx, bx, bx + size), hy = clamp(d.fy, by, by + size);
         const around = [head - n, head + n, head % n ? head - 1 : -1, head % n < n - 1 ? head + 1 : -1];
         for (const nb of around) {
           if (nb < 0 || nb >= this.N) continue;
@@ -1452,7 +1472,7 @@ button { font: inherit; color: inherit; }
         }
         c.beginPath(); c.arc(hx, hy, cell * 0.46, 0, TAU);
         c.globalAlpha = 0.28; c.fillStyle = color; c.fill(); c.globalAlpha = 1;
-        c.beginPath(); c.arc(hx, hy, cell * 0.22, 0, TAU);
+        c.beginPath(); c.arc(tip.x, tip.y, cell * 0.22, 0, TAU);
         c.fillStyle = color; c.fill(); c.lineWidth = 3; c.strokeStyle = theme.casing; c.stroke();
       }
 

@@ -138,6 +138,8 @@ Boards are generated when each round starts:
 
 Scoring: 15 mance per pair, +40 for filling every cell, +25 for no redraws, and +20 in the next game for crossing the passage.
 
+**Drawing follows the thumb.** The path moves one cell at a time (crossing a cell's edge takes the cell), but while dragging, the line's end is drawn at the finger, projected onto the grid, and the translucent halo sits under the thumb. Before, the line's end sat on the head cell's centre: half a cell behind the thumb, then half a cell ahead on entering the next cell, which looked like lag. On a 16-cell drag, the gap between finger and line end went from 17 px median (28.5 px at worst) to 0. Drawing still takes about 1 ms a frame with the CPU slowed 4×.
+
 ## Settings
 
 Players can change how the game plays. On the start screen, tap **Impostazioni / Settings**. Options are grouped by game, each group under the game's name; multiple-choice options show their label on top and the choices below, on/off switches sit on one line.
